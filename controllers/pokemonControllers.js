@@ -10,7 +10,8 @@ const checkData = async (req, res, next) => {
         `${__dirname}/../dev-data/pokemon.csv`
       );
       console.log("dataFromCsv la", dataFromCsv);
-      dataFromCsv = dataFromCsv.map((e, index) => {
+      //slice to 721 due to img quantity
+      dataFromCsv = await dataFromCsv.slice(0, 721).map((e, index) => {
         return {
           id: index + 1,
           name: e.Name,
@@ -20,6 +21,7 @@ const checkData = async (req, res, next) => {
       });
 
       data.data = dataFromCsv;
+      data.totalPokemons = data.data.length;
 
       fs.writeFileSync(
         `${__dirname}/../dev-data/db.json`,
@@ -37,11 +39,12 @@ const checkData = async (req, res, next) => {
 };
 
 const checkID = (req, res, next, val) => {
-  console.log(`book id is ${val}`);
+  // console.log(`book id is ${val}`);
   // const book = data.books.find((e) => e.id === req.params.id);
   //note: req.params.id và val cho giá trị như nhau
-  const book = data.books.find((e) => e.id === val);
-  if (!book) {
+  const id = req.params.id * 1;
+  const pokemon = data.data.find((e) => e.id === id);
+  if (!pokemon) {
     return res.status(404).json({
       status: "fail",
       message: "Invalid id",
@@ -49,6 +52,7 @@ const checkID = (req, res, next, val) => {
   }
   next();
 };
+
 const checkBody = (req, res, next) => {
   if (
     !req.body.author ||
@@ -69,13 +73,38 @@ const checkBody = (req, res, next) => {
   next();
 };
 
-const getAllPokemons = async (req, res) => {
+const getPokemons = async (req, res) => {
+  const { page, limit, search, type = "" } = req.query;
+  let limitNumber = limit * 1;
+  let pageNumber = page * 1;
+
+  let startIndex = (pageNumber - 1) * limitNumber;
+  let endIndex = startIndex + limitNumber;
+
   try {
+    let result = data.data.slice(startIndex, endIndex);
+
+    if (type) {
+      result = data.data
+        .filter((pokemon) =>
+          pokemon.types.some((t) =>
+            t ? t.toLowerCase() === type.toLowerCase() : false
+          )
+        )
+        .slice(startIndex, endIndex);
+    }
+
+    if (search) {
+      result = data.data
+        .filter((pokemon) =>
+          pokemon.name.toLowerCase().includes(search.toLowerCase())
+        )
+        .slice(startIndex, endIndex);
+    }
+
     res.status(200).json({
-      status: "success",
-      result: data.data.length,
       data: {
-        pokemons: data.data,
+        pokemons: result,
       },
     });
   } catch (error) {
@@ -86,24 +115,57 @@ const getAllPokemons = async (req, res) => {
   }
 };
 
-const getBook = async (req, res) => {
+const getPokemonById = async (req, res) => {
   try {
-    const book = data.books.find((e) => e.id === req.params.id);
-    res.status(200).json({
-      status: "success",
-      data: {
-        book: book,
-      },
-    });
+    const id = req.params.id * 1;
+    const pokemon = data.data.find((e) => e.id === id);
+    const previousPokemon = data.data.find((e) => e.id === id - 1);
+    const nextPokemon = data.data.find((e) => e.id === id + 1);
+
+    res
+      .status(200)
+      .json(Object.assign({ pokemon, previousPokemon, nextPokemon }));
   } catch (error) {
     return res.status(404).json({
       status: "fail",
-      message: "Invalid id in getBook",
+      message: "Invalid id in getPokemon",
     });
   }
 };
 
-const updateBook = async (req, res) => {
+const addPokemon = async (req, res) => {
+  try {
+    const newId = (await data.books[data.books.length - 1].id) + 1;
+    const newBook = Object.assign({ id: newId }, req.body);
+
+    data.books.push(newBook);
+    fs.writeFile(
+      `${__dirname}/../dev-data/db.json`,
+      JSON.stringify(data),
+      (err) => {
+        if (err) {
+          return res.status(500).json({
+            status: "fail",
+            message: "Could not write to file",
+          });
+        }
+        res.status(201).json({
+          status: "success",
+          data: {
+            book: newBook,
+          },
+        });
+      }
+    );
+  } catch (error) {
+    return res.status(404).json({
+      status: "fail",
+      message: "Invalid id in createBook",
+    });
+  }
+};
+
+const editPokemon = async (req, res) => {
   try {
     const bookIndex = await data.books.findIndex((e) => e.id === req.params.id);
 
@@ -139,39 +201,7 @@ const updateBook = async (req, res) => {
   }
 };
 
-const createBook = async (req, res) => {
-  try {
-    const newId = (await data.books[data.books.length - 1].id) + 1;
-    const newBook = Object.assign({ id: newId }, req.body);
-
-    data.books.push(newBook);
-    fs.writeFile(
-      `${__dirname}/../dev-data/db.json`,
-      JSON.stringify(data),
-      (err) => {
-        if (err) {
-          return res.status(500).json({
-            status: "fail",
-            message: "Could not write to file",
-          });
-        }
-        res.status(201).json({
-          status: "success",
-          data: {
-            book: newBook,
-          },
-        });
-      }
-    );
-  } catch (error) {
-    return res.status(404).json({
-      status: "fail",
-      message: "Invalid id in createBook",
-    });
-  }
-};
-
-const deleteBook = async (req, res) => {
+const deletePokemon = async (req, res) => {
   try {
     const bookIndex = data.books.findIndex((e) => e.id === req.params.id);
 
@@ -203,11 +233,11 @@ const deleteBook = async (req, res) => {
 };
 
 module.exports = {
-  getAllPokemons,
-  getBook,
-  updateBook,
-  deleteBook,
-  createBook,
+  getPokemons,
+  getPokemonById,
+  addPokemon,
+  editPokemon,
+  deletePokemon,
   checkID,
   checkBody,
   checkData,

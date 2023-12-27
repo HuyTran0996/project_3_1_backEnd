@@ -6,13 +6,16 @@ router.param("id", pokemonControllers.checkID);
 
 router
   .route("/")
-  .get(pokemonControllers.checkData, pokemonControllers.getAllPokemons)
-  .post(pokemonControllers.checkBody, pokemonControllers.createBook);
+  .get(pokemonControllers.checkData, pokemonControllers.getPokemons);
+
+router
+  .route("/addPokemon")
+  .post(pokemonControllers.checkBody, pokemonControllers.addPokemon);
 
 router
   .route("/:id")
-  .get(pokemonControllers.getBook)
-  .patch(pokemonControllers.checkBody, pokemonControllers.updateBook)
-  .delete(pokemonControllers.deleteBook);
+  .get(pokemonControllers.checkData, pokemonControllers.getPokemonById)
+  .put(pokemonControllers.checkBody, pokemonControllers.editPokemon)
+  .delete(pokemonControllers.deletePokemon);
 
 module.exports = router;
