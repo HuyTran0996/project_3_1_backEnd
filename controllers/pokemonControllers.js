@@ -1,31 +1,57 @@
 const fs = require("fs");
 const csv = require("csvtojson");
 
-const data = JSON.parse(fs.readFileSync(`${__dirname}/../dev-data/db.json`));
+const databe = JSON.parse(fs.readFileSync(`${__dirname}/../dev-data/db.json`));
+
+const pokemonTypes = [
+  "bug",
+  "dragon",
+  "fairy",
+  "fire",
+  "ghost",
+  "ground",
+  "normal",
+  "psychic",
+  "steel",
+  "dark",
+  "electric",
+  "fighting",
+  "flyingText",
+  "grass",
+  "ice",
+  "poison",
+  "rock",
+  "water",
+];
+const pokemonExists = (id, name) => {
+  return databe.data.some(
+    (pokemon) => pokemon.id * 1 === id * 1 || pokemon.name === name
+  );
+};
 
 const checkData = async (req, res, next) => {
-  if (data.data.length === 0) {
+  if (databe.data.length === 0) {
     try {
       let dataFromCsv = await csv().fromFile(
         `${__dirname}/../dev-data/pokemon.csv`
       );
-      console.log("dataFromCsv la", dataFromCsv);
+      // console.log("dataFromCsv la", dataFromCsv);
       //slice to 721 due to img quantity
       dataFromCsv = await dataFromCsv.slice(0, 721).map((e, index) => {
         return {
           id: index + 1,
           name: e.Name,
           types: [e.Type1, e.Type2],
-          url: `http://localhost:5000/images/${index + 1}.png`,
+          url: `http://127.0.0.1:5000/api/pokemons/images/${index + 1}.png`,
         };
       });
 
-      data.data = dataFromCsv;
-      data.totalPokemons = data.data.length;
+      databe.data = dataFromCsv;
+      databe.totalPokemons = databe.data.length;
 
       fs.writeFileSync(
         `${__dirname}/../dev-data/db.json`,
-        JSON.stringify(data)
+        JSON.stringify(databe)
       );
     } catch (error) {
       console.log("Failed to create pokemons:", error);
@@ -43,7 +69,7 @@ const checkID = (req, res, next, val) => {
   // const book = data.books.find((e) => e.id === req.params.id);
   //note: req.params.id và val cho giá trị như nhau
   const id = req.params.id * 1;
-  const pokemon = data.data.find((e) => e.id === id);
+  const pokemon = databe.data.find((e) => e.id === id);
   if (!pokemon) {
     return res.status(404).json({
       status: "fail",
@@ -54,22 +80,58 @@ const checkID = (req, res, next, val) => {
 };
 
 const checkBody = (req, res, next) => {
-  if (
-    !req.body.author ||
-    !req.body.country ||
-    !req.body.imageLink ||
-    !req.body.language ||
-    !req.body.link ||
-    !req.body.pages ||
-    !req.body.title ||
-    !req.body.year
-  ) {
+  if (!req.body.id || !req.body.name || !req.body.types || !req.body.url) {
+    console.log("Missing required data.");
     return res.status(400).json({
       status: "fail",
-      message:
-        "missing information, please give info of author, country, imageLink, language, link, pages, title, year ",
+      message: "Missing required data.",
     });
   }
+
+  if (req.body.types.length > 2) {
+    console.log("Pokemon can only have one or two types.");
+    return res.status(400).json({
+      status: "fail",
+      message: "Pokemon can only have one or two types.",
+    });
+  }
+
+  const nullCount = req.body.types.reduce(
+    (count = 0, type) => (type === null ? count + 1 : count),
+    0
+  );
+
+  if (nullCount > 1) {
+    console.log(nullCount);
+    console.log("Pokemon have to have one or two types.");
+
+    return res.status(400).json({
+      status: "fail",
+      message: "Pokemon have to have one or two types.",
+    });
+  }
+
+  if (
+    !req.body.types.every(
+      (type) => type === null || " " || pokemonTypes.includes(type)
+    )
+  ) {
+    console.log("request body types", req.body);
+    console.log("Pokemon's type is invalid.");
+    return res.status(400).json({
+      status: "fail",
+      message: "Pokemon's type is invalid.",
+    });
+  }
+
+  if (pokemonExists(req.body.id, req.body.name)) {
+    console.log("The Pokémon already exists.");
+    return res.status(400).json({
+      status: "fail",
+      message: "The Pokémon already exists.",
+    });
+  }
+
   next();
 };
 
@@ -82,10 +144,10 @@ const getPokemons = async (req, res) => {
   let endIndex = startIndex + limitNumber;
 
   try {
-    let result = data.data.slice(startIndex, endIndex);
+    let data = databe.data.slice(startIndex, endIndex);
 
     if (type) {
-      result = data.data
+      data = databe.data
         .filter((pokemon) =>
           pokemon.types.some((t) =>
             t ? t.toLowerCase() === type.toLowerCase() : false
@@ -95,18 +157,14 @@ const getPokemons = async (req, res) => {
     }
 
     if (search) {
-      result = data.data
+      data = databe.data
         .filter((pokemon) =>
           pokemon.name.toLowerCase().includes(search.toLowerCase())
         )
         .slice(startIndex, endIndex);
     }
 
-    res.status(200).json({
-      data: {
-        pokemons: result,
-      },
-    });
+    res.status(200).json({ data });
   } catch (error) {
     return res.status(404).json({
       status: "fail",
@@ -118,13 +176,11 @@ const getPokemons = async (req, res) => {
 const getPokemonById = async (req, res) => {
   try {
     const id = req.params.id * 1;
-    const pokemon = data.data.find((e) => e.id === id);
-    const previousPokemon = data.data.find((e) => e.id === id - 1);
-    const nextPokemon = data.data.find((e) => e.id === id + 1);
-
-    res
-      .status(200)
-      .json(Object.assign({ pokemon, previousPokemon, nextPokemon }));
+    const pokemon = databe.data.find((e) => e.id === id);
+    const previousPokemon = databe.data.find((e) => e.id === id - 1);
+    const nextPokemon = databe.data.find((e) => e.id === id + 1);
+    let data = Object.assign({ pokemon, previousPokemon, nextPokemon });
+    res.status(200).json({ data });
   } catch (error) {
     return res.status(404).json({
       status: "fail",
@@ -134,14 +190,19 @@ const getPokemonById = async (req, res) => {
 };
 
 const addPokemon = async (req, res) => {
+  console.log("123123", req.body);
   try {
-    const newId = (await data.books[data.books.length - 1].id) + 1;
-    const newBook = Object.assign({ id: newId }, req.body);
+    // const newId = (await data.data[data.data.length - 1].id) + 1;
+    // const newPokemon = Object.assign({ id: newId }, req.body);
+    // const newPokemon = Object.assign(req.body);
 
-    data.books.push(newBook);
+    const data = req.body;
+
+    databe.data.push(data);
+    databe.totalPokemons = databe.data.length;
     fs.writeFile(
       `${__dirname}/../dev-data/db.json`,
-      JSON.stringify(data),
+      JSON.stringify(databe),
       (err) => {
         if (err) {
           return res.status(500).json({
@@ -149,12 +210,7 @@ const addPokemon = async (req, res) => {
             message: "Could not write to file",
           });
         }
-        res.status(201).json({
-          status: "success",
-          data: {
-            book: newBook,
-          },
-        });
+        res.status(201).json({ data });
       }
     );
   } catch (error) {
@@ -167,16 +223,18 @@ const addPokemon = async (req, res) => {
 
 const editPokemon = async (req, res) => {
   try {
-    const bookIndex = await data.books.findIndex((e) => e.id === req.params.id);
+    const pokemonIndex = await databe.data.findIndex(
+      (e) => e.id === req.params.id * 1
+    );
 
-    const book = await data.books.find((e) => e.id === req.params.id);
-    const updatedBook = Object.assign({ id: book.id }, req.body);
+    const updatedPokemon = Object.assign(req.body);
 
-    data.books[bookIndex] = updatedBook;
+    databe.data[pokemonIndex] = updatedPokemon;
+    databe.totalPokemons = databe.data.length;
 
     fs.writeFile(
       `${__dirname}/../dev-data/db.json`,
-      JSON.stringify(data),
+      JSON.stringify(databe),
       (err) => {
         if (err) {
           return res.status(500).json({
@@ -203,13 +261,16 @@ const editPokemon = async (req, res) => {
 
 const deletePokemon = async (req, res) => {
   try {
-    const bookIndex = data.books.findIndex((e) => e.id === req.params.id);
+    const pokemonIndex = databe.data.findIndex(
+      (e) => e.id === req.params.id * 1
+    );
 
-    data.books.splice(bookIndex, 1);
+    databe.data.splice(pokemonIndex, 1);
+    databe.totalPokemons = databe.data.length;
 
     fs.writeFile(
       `${__dirname}/../dev-data/db.json`,
-      JSON.stringify(data),
+      JSON.stringify(databe),
       (err) => {
         if (err) {
           return res.status(500).json({
