@@ -134,6 +134,79 @@ const checkBody = (req, res, next) => {
 
   next();
 };
+const checkBodyEdit = (req, res, next) => {
+  if (!req.body.id || !req.body.name || !req.body.types || !req.body.url) {
+    console.log("Missing required data.");
+    return res.status(400).json({
+      status: "fail",
+      message: "Missing required data.",
+    });
+  }
+
+  if (req.body.types.length > 2) {
+    console.log("Pokemon can only have one or two types.");
+    return res.status(400).json({
+      status: "fail",
+      message: "Pokemon can only have one or two types.",
+    });
+  }
+
+  const nullCount = req.body.types.reduce(
+    (count = 0, type) => (type === null ? count + 1 : count),
+    0
+  );
+
+  if (nullCount > 1) {
+    console.log(nullCount);
+    console.log("Pokemon have to have one or two types.");
+
+    return res.status(400).json({
+      status: "fail",
+      message: "Pokemon have to have one or two types.",
+    });
+  }
+
+  if (
+    !req.body.types.every(
+      (type) => type === null || " " || pokemonTypes.includes(type)
+    )
+  ) {
+    console.log("request body types", req.body);
+    console.log("Pokemon's type is invalid.");
+    return res.status(400).json({
+      status: "fail",
+      message: "Pokemon's type is invalid.",
+    });
+  }
+  const pokemonIndex = databe.data.findIndex((e) => e.id === req.params.id * 1);
+  //change others, keep id and name
+  if (
+    req.body.id * 1 === req.params.id * 1 &&
+    req.body.name === databe.data[pokemonIndex].name
+  ) {
+    next();
+    return;
+  }
+  //change others, keep id
+  if (req.body.id * 1 === req.params.id * 1) {
+    next();
+    return;
+  }
+  //change others, keep name
+  if (req.body.name === databe.data[pokemonIndex].name) {
+    next();
+    return;
+  }
+  if (pokemonExists(req.body.id, req.body.name)) {
+    console.log("The Pokémon already exists.");
+    return res.status(400).json({
+      status: "fail",
+      message: "The Pokémon already exists.",
+    });
+  }
+
+  next();
+};
 
 const getPokemons = async (req, res) => {
   const { page, limit, search, type = "" } = req.query;
@@ -191,12 +264,13 @@ const getPokemonById = async (req, res) => {
 
 const addPokemon = async (req, res) => {
   console.log("123123", req.body);
-  try {
-    // const newId = (await data.data[data.data.length - 1].id) + 1;
-    // const newPokemon = Object.assign({ id: newId }, req.body);
-    // const newPokemon = Object.assign(req.body);
 
-    const data = req.body;
+  try {
+    const idConvert = Number(req.body.id);
+
+    const newPokemon = Object.assign(req.body, { id: idConvert });
+
+    const data = newPokemon;
 
     databe.data.push(data);
     databe.totalPokemons = databe.data.length;
@@ -302,4 +376,5 @@ module.exports = {
   checkID,
   checkBody,
   checkData,
+  checkBodyEdit,
 };

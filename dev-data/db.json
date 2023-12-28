@@ -4325,8 +4325,7 @@
       "name": "volcanion",
       "types": ["Fire", "Water"],
       "url": "http://127.0.0.1:5000/api/pokemons/images/721.png"
-    },
-    { "name": "porject3.1", "id": "725", "url": "kkk", "types": ["Fire", null] }
+    }
   ],
-  "totalPokemons": 722
+  "totalPokemons": 721
 }
