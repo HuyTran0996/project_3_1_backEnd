@@ -42,7 +42,9 @@ const checkData = async (req, res, next) => {
           id: index + 1,
           name: e.Name,
           types: [e.Type1, e.Type2],
-          url: `http://127.0.0.1:5000/api/pokemons/images/${index + 1}.png`,
+          url: `https://project-3-1-backend.onrender.com/api/pokemons/images/${
+            index + 1
+          }.png`,
         };
       });
 
